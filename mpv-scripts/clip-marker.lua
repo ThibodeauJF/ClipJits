@@ -58,9 +58,13 @@ end
 function save_queue(queue_data)
     local file_path = get_queue_file()
     
-    local dir = file_path:match("(.*/)")
+    local dir = file_path:match("(.+)[/\\]")
     if dir then
-        os.execute("mkdir -p " .. dir)
+        if package.config:sub(1,1) == '\\' then
+            os.execute('if not exist "' .. dir .. '" mkdir "' .. dir .. '"')
+        else
+            os.execute("mkdir -p " .. dir)
+        end
     end
     
     local file = io.open(file_path, "w")
@@ -87,16 +91,16 @@ end
 function mark_start()
     clip_start = mp.get_property_number("time-pos")
     if clip_start then
-        mp.osd_message(string.format("Clip start marked: %s", format_timestamp(clip_start)), 2)
-        msg.info("Clip start marked at: " .. clip_start)
+        mp.osd_message(string.format("✓ Start: %s", format_timestamp(clip_start)), 2)
+        print(string.format("[ClipJits] Start marked: %s", format_timestamp(clip_start)))
     end
 end
 
 function mark_end()
     clip_end = mp.get_property_number("time-pos")
     if clip_end then
-        mp.osd_message(string.format("Clip end marked: %s", format_timestamp(clip_end)), 2)
-        msg.info("Clip end marked at: " .. clip_end)
+        mp.osd_message(string.format("✓ End: %s", format_timestamp(clip_end)), 2)
+        print(string.format("[ClipJits] End marked: %s", format_timestamp(clip_end)))
     end
 end
 
@@ -122,17 +126,19 @@ function commit_clip()
         return
     end
     
-    mp.osd_message("Enter label (leave empty for auto): ", 30)
+    local was_paused = mp.get_property_bool("pause")
+    mp.set_property("pause", "yes")
     
-    local label_input = mp.command_native({
-        name = "input",
-        prompt = "Clip label:",
-        default_text = "",
-    })
+    mp.osd_message("Enter label in terminal", 3)
     
-    local label = ""
-    if label_input and label_input ~= "" then
-        label = label_input
+    print("\n" .. string.rep("─", 50))
+    io.write("Enter clip label (or press Enter to skip): ")
+    io.flush()
+    local label = io.read()
+    print(string.rep("─", 50))
+    
+    if not label or label == "" then
+        label = ""
     end
     
     local queue_data = load_queue()
@@ -149,17 +155,16 @@ function commit_clip()
     table.insert(queue_data.clips, new_clip)
     
     if save_queue(queue_data) then
-        local msg_text = string.format(
-            "Clip added to queue\nLabel: %s\nStart: %s\nEnd: %s",
-            label ~= "" and label or "(none)",
-            format_timestamp(clip_start),
-            format_timestamp(clip_end)
-        )
-        mp.osd_message(msg_text, 4)
-        msg.info("Clip committed: " .. new_clip.id)
+        local label_display = label ~= "" and label or "(auto)"
+        mp.osd_message(string.format("✓ Saved: %s", label_display), 2)
+        print(string.format("[ClipJits] ✓ Clip saved with label: %s\n", label_display))
         
         clip_start = nil
         clip_end = nil
+    end
+    
+    if not was_paused then
+        mp.set_property("pause", "no")
     end
 end
 
@@ -169,5 +174,5 @@ mp.add_key_binding("s", "mark_clip_start", mark_start)
 mp.add_key_binding("e", "mark_clip_end", mark_end)
 mp.add_key_binding("c", "commit_clip", commit_clip)
 
-mp.osd_message("ClipJits loaded - s:start e:end c:commit", 3)
-msg.info("ClipJits script loaded successfully")
+mp.osd_message("ClipJits ready: s=start, e=end, c=commit", 3)
+print("[ClipJits] Ready. Press 's' to mark start, 'e' to mark end, 'c' to commit.")

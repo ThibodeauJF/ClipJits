@@ -105,6 +105,8 @@ def launch_mpv(video_path: Path):
     else:
         cmd = [
             'mpv',
+            '--msg-level=all=no,clipjits=info',
+            '--term-status-msg=',
             f'--script={script_path}',
             f'--script-opts=clipjits-queue-file={config.clip_queue_file}',
             str(video_path)
