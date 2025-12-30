@@ -224,6 +224,27 @@ Generated markdown files follow this structure:
 
 ## Troubleshooting
 
+### Cannot run `clipjits` command
+
+**Error**: `'clipjits' is not recognized` or `command not found`
+
+**Solution**: Use `python -m clipjits` instead:
+```bash
+python -m clipjits --help
+python -m clipjits download <url>
+python -m clipjits watch video.mp4
+```
+
+If you prefer using just `clipjits`, either:
+- **Use a virtual environment** (recommended):
+  ```bash
+  source venv/Scripts/activate  # Windows Bash
+  clipjits --help
+  ```
+- **Add to PATH**: Add Python Scripts directory to your system PATH
+  - Windows: `C:\Users\<username>\AppData\Roaming\Python\Python3XX\Scripts`
+  - macOS/Linux: Usually already in PATH
+
 ### MPV doesn't launch
 - Verify MPV is installed: `mpv --version`
 - Check that video file exists and is readable
@@ -231,6 +252,21 @@ Generated markdown files follow this structure:
 ### Clip extraction fails
 - Verify FFmpeg is installed: `ffmpeg -version`
 - Check that source video path in queue is correct
+
+### Download fails with HTTP 403 error
+
+**Error**: `HTTP Error 403: Forbidden` when downloading from YouTube
+
+**Solutions**:
+1. **Update yt-dlp** (most common fix):
+   ```bash
+   pip install --upgrade yt-dlp
+   ```
+
+2. **Use cookies** (if updating doesn't work):
+   - Install browser extension: "Get cookies.txt LOCALLY"
+   - Export cookies from YouTube while logged in
+   - Use: `clipjits download <url> --cookies cookies.txt`
 
 ### Transcription is slow
 - Use smaller Whisper model (set `WHISPER_MODEL_SIZE=tiny` in `.env`)
@@ -240,6 +276,17 @@ Generated markdown files follow this structure:
 - Verify API key is set correctly in `.env`
 - Check API key has sufficient credits
 - Verify internet connection
+
+### MPV label input issues
+
+When you press `c` to commit a clip:
+- The video will pause
+- Look at your **terminal window** (not MPV window)
+- You'll see a prompt: `Enter clip label (or press Enter to skip):`
+- Type your label and press Enter
+- Video will resume after saving
+
+**Note**: You may see "No key binding found" messages while typing - these are harmless and expected.
 
 ### Queue file location
 - Default: `~/.clipjits/clip_queue.json`
@@ -275,6 +322,7 @@ Use descriptive labels during clipping for better organization.
 ClipJits/
 ├── clipjits/           # Main package
 │   ├── __init__.py
+│   ├── __main__.py     # Module entry point
 │   ├── cli.py          # Command-line interface
 │   ├── config.py       # Configuration management
 │   ├── download.py     # Video downloader
