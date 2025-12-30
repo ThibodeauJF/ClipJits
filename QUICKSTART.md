@@ -21,20 +21,27 @@ If `clipjits` command not found, use `python -m clipjits`:
 
 ```bash
 clipjits download "https://youtube.com/watch?v=..."
-clipjits watch source-videos/video.mp4
-clipjits extract
-clipjits process ./clips
+clipjits watch jits/downloads/video.mp4
+clipjits process
 ```
 
 ## MPV Controls
 
 - `s` - Mark start
 - `e` - Mark end  
-- `c` - Commit (enter label in terminal)
+- `c` - Commit (enter label in terminal - **required**, extracts immediately)
 - `q` - Quit
+
+## Workflow
+
+1. **Download** → saves to `jits/downloads/`
+2. **Watch** → mark clips, they extract immediately to `jits/clips/`
+3. **Process** → clips move to `jits/clips/processed/`, media to `jits/Media/`, markdown to `jits/Techniques/`
 
 ## Tips
 
-- Use numbered labels (`armbar1`, `armbar2`) to group clips into one card
+- Label is **required** when committing clips
+- All filenames use snake_case with 50 character limit
+- Clips from same source video are processed together
 - Label prompt appears in **terminal**, not MPV window
 - Update yt-dlp if downloads fail: `pip install --upgrade yt-dlp`

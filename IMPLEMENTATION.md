@@ -1,7 +1,7 @@
 # ClipJits Implementation Summary
 
 ## Project Overview
-ClipJits is a complete two-step CLI tool for creating BJJ technique cards from instructional videos. The system enables efficient video clipping during study sessions, followed by batch AI-powered processing to generate technique summaries in Obsidian-compatible markdown format.
+ClipJits is a streamlined CLI tool for creating BJJ technique cards from instructional videos. The system enables efficient video clipping during study sessions with immediate extraction, followed by batch AI-powered processing to generate technique summaries in Obsidian-compatible markdown format.
 
 ## Implementation Complete ✓
 
@@ -9,7 +9,8 @@ ClipJits is a complete two-step CLI tool for creating BJJ technique cards from i
 
 1. **Configuration Management** (`clipjits/config.py`)
    - Environment-based configuration with .env support
-   - Configurable paths for videos, clips, and output
+   - Single VAULT_PATH for all data organization
+   - Structured subfolders: clips/, clips/processed/, downloads/, Techniques/, Media/
    - Multiple LLM provider support (OpenAI, Anthropic)
    - Whisper model size configuration
 
@@ -17,36 +18,46 @@ ClipJits is a complete two-step CLI tool for creating BJJ technique cards from i
    - Downloads from YouTube, Instagram, Reddit, X using yt-dlp
    - Configurable video quality
    - Progress display
-   - Automatic filename sanitization
+   - Saves to vault/downloads/ directory
 
 3. **Clip Manager** (`clipjits/clip.py`)
-   - ClipQueue class for managing video clip metadata
+   - Immediate clip extraction upon commit
    - MPV integration for marking clips during playback
-   - Persistent JSON-based queue storage
    - FFmpeg-based clip extraction with precise timestamps
-   - Queue management (list, edit, clear, remove)
+   - Snake_case filename conversion with character limits
 
 4. **Batch Processor** (`clipjits/process.py`)
    - OpenAI Whisper integration for audio transcription
    - Multiple Whisper model sizes (tiny/base/small/medium/large)
    - LLM-based technique summary generation
    - Support for OpenAI and Anthropic APIs
-   - Automatic grouping of related clips by label
+   - Automatic grouping of clips by source video
    - Resume capability for interrupted processing
+   - Automatic file organization:
+     - Moves processed clips to vault/clips/processed/
+     - Copies media to vault/Media/ with numbered suffixes
+     - Saves markdown to vault/Techniques/
    - Obsidian-compatible markdown output with video embeds
 
 5. **MPV Lua Script** (`mpv-scripts/clip-marker.lua`)
    - Keyboard shortcuts for marking clip start/end (s, e, c)
-   - Label input for organizing clips
-   - Automatic queue management
-   - UUID-based clip identification
-   - Persistent storage across sessions
+   - **Required** label input for organizing clips
+   - Immediate FFmpeg extraction upon commit
+   - Snake_case conversion in Lua
+   - Persistent storage of clips
 
 6. **CLI Interface** (`clipjits/cli.py`)
    - Click-based command-line interface
-   - Commands: download, watch, queue (list/edit/clear), extract, process
+   - Simplified commands: download, watch, process
+   - No queue management needed (immediate extraction)
    - Rich help text and error messages
    - Progress indicators for long-running operations
+
+7. **Utility Functions** (`clipjits/utils.py`)
+   - Snake_case conversion with 50 character limit
+   - Filename sanitization
+   - Timestamp parsing and formatting
+   - Label extraction helpers
 
 ### Project Structure
 ```
@@ -61,6 +72,12 @@ ClipJits/
 │   └── utils.py           # Helper functions
 ├── mpv-scripts/
 │   └── clip-marker.lua    # MPV clip marking script
+├── jits/                   # Default vault directory
+│   ├── clips/             # Active clips ready to process
+│   ├── clips/processed/   # Processed clips archive
+│   ├── downloads/         # Downloaded videos
+│   ├── Techniques/        # Generated markdown files
+│   └── Media/             # Media files for markdown
 ├── .env                    # User configuration
 ├── .env.example           # Configuration template
 ├── .gitignore             # Git ignore rules
@@ -68,25 +85,26 @@ ClipJits/
 ├── README.md              # Full documentation
 ├── QUICKSTART.md          # Quick start guide
 ├── cj.bat                 # Windows batch wrapper
-└── clipjits.md            # Original requirements
+└── IMPLEMENTATION.md      # This file
 ```
 
 ### Features Implemented
 
-✓ Video downloading from multiple platforms
+✓ Video downloading from multiple platforms to vault/downloads/
 ✓ MPV integration with keyboard shortcuts
-✓ Persistent clip queue with JSON storage
-✓ Label-based clip organization (e.g., armbar1, armbar2)
-✓ Automatic clip grouping by base label
+✓ **Immediate clip extraction** upon commit (no queue needed)
+✓ **Required label input** for all clips
+✓ Snake_case filename conversion (50 char limit)
 ✓ FFmpeg-based clip extraction
 ✓ Local Whisper transcription (multiple model sizes)
 ✓ Multi-provider LLM support (OpenAI, Anthropic)
 ✓ Obsidian-compatible markdown generation
 ✓ Video embedding in markdown files
-✓ Queue management (list, edit, clear)
+✓ **Automatic clip grouping by source video**
+✓ **Automatic file organization** (processed/, Media/, Techniques/)
 ✓ Resume capability for batch processing
 ✓ Skip transcription option (reuse existing)
-✓ Configurable output directories
+✓ Vault-based directory structure
 ✓ Error handling and logging
 ✓ Progress indicators
 
@@ -119,27 +137,26 @@ ClipJits/
 ```bash
 # Use the batch file wrapper (Windows)
 clipjits download "https://youtube.com/watch?v=..."
-clipjits watch source-videos/video.mp4
-clipjits queue list
-clipjits extract
-clipjits process ./clips
+clipjits watch jits/downloads/video.mp4
+clipjits process
 
 # Or use Python module directly
-python -m clipjits.cli download "url"
-python -m clipjits.cli watch video.mp4
+python -m clipjits download "url"
+python -m clipjits watch video.mp4
+python -m clipjits process
 ```
 
 ### MPV Keybindings
 - `s` - Mark clip start
 - `e` - Mark clip end
-- `c` - Commit clip (prompts for label)
+- `c` - Commit clip (prompts for **required** label, extracts immediately)
 - `q` - Quit MPV
 
 ### Configuration
 Edit `.env` file:
 ```env
+VAULT_PATH=./jits
 OPENAI_API_KEY=your-key
-OBSIDIAN_VAULT_PATH=~/Documents/Vault/BJJ
 WHISPER_MODEL_SIZE=base
 LLM_MODEL=gpt-4o-mini
 ```
@@ -147,10 +164,11 @@ LLM_MODEL=gpt-4o-mini
 ## Output Format
 
 Generated markdown files include:
-- Technique name and category
+- Technique name (extracted from LLM response)
+- Category (e.g., Submission, Sweep, Pass)
 - Step-by-step instructions
 - Key concepts and details
-- Embedded video references
+- Embedded video references (numbered)
 - Source information
 
 Example:
@@ -158,7 +176,6 @@ Example:
 # Armbar from Guard
 
 **Category**: Submission
-**Source**: instructional_armbar1.mp4
 
 ## Steps
 1. Control opponent's posture
@@ -172,9 +189,13 @@ Example:
 ...
 
 ## Video
-![[instructional_armbar1.mp4]]
-![[instructional_armbar2.mp4]]
+![[armbar_from_guard_1.mp4]]
+![[armbar_from_guard_2.mp4]]
 ```
+
+Media files in `jits/Media/`:
+- `armbar_from_guard_1.mp4`
+- `armbar_from_guard_2.mp4`
 
 ## Installation Requirements
 
@@ -193,34 +214,37 @@ Example:
 
 ## Design Decisions
 
-1. **Lua over IPC**: Chose Lua scripting for MPV integration (simpler setup)
-2. **JSON for Queue**: Used JSON for clip queue (human-readable, easy debugging)
-3. **Click over Typer**: Selected Click for CLI (more established, stable)
-4. **Label-based Grouping**: Numeric suffixes group clips (armbar1, armbar2 → armbar.md)
-5. **Local Whisper**: Transcription runs locally (privacy, no per-clip costs)
-6. **Multiple LLM Providers**: Support for OpenAI and Anthropic (flexibility)
-7. **Editable Install**: Development mode allows easy modifications
+1. **Immediate Extraction**: Clips are extracted immediately upon commit (no queue management needed)
+2. **Required Labels**: All clips must have labels for proper organization
+3. **Snake_case Filenames**: Consistent naming with 50 character limit
+4. **Source-based Grouping**: Clips from same source video are processed together
+5. **Vault Structure**: Single root path with organized subfolders
+6. **Automatic File Management**: Processed clips moved, media copied with proper naming
+7. **Lua over IPC**: Chose Lua scripting for MPV integration (simpler setup)
+8. **Click over Typer**: Selected Click for CLI (more established, stable)
+9. **Local Whisper**: Transcription runs locally (privacy, no per-clip costs)
+10. **LLM-based Naming**: Technique names extracted from LLM response
 
-## Future Enhancements (Out of Scope)
+## Key Improvements
 
-- GUI interface
-- Batch playlist downloading
-- Duplicate technique detection
-- Frame extraction for visual references
-- Custom LLM prompt templates
-- Cloud storage integration
-- Mobile companion app
+1. **Simplified Workflow**: Removed queue management, extraction is immediate
+2. **Better Organization**: All data under single vault path with clear structure
+3. **Improved Naming**: Snake_case with character limits for consistency
+4. **Automatic Cleanup**: Processed clips moved, media properly organized
+5. **Source-based Grouping**: Multiple clips from same video combined automatically
+6. **Required Labels**: No more optional labels, ensures proper organization
 
 ## Testing Status
 
 ✓ Package installation successful
 ✓ CLI commands functional
-✓ Queue operations working
+✓ Immediate clip extraction working
 ✓ Help text displays correctly
 ✓ Configuration loading works
 ✓ Directory creation functional
+✓ Snake_case conversion validated
 
-**Not yet tested** (requires external dependencies):
+**Requires external dependencies:**
 - Video downloading (requires yt-dlp)
 - MPV clip marking (requires MPV installed)
 - Clip extraction (requires FFmpeg)
@@ -230,28 +254,36 @@ Example:
 ## Documentation
 
 - **README.md**: Complete setup and usage guide
-- **QUICKSTART.md**: Windows-specific quick start
+- **QUICKSTART.md**: Quick start guide
 - **.env.example**: Configuration template with comments
-- **clipjits.md**: Original requirements document
+- **notes.md**: Requirements document
 - **Inline docstrings**: All functions documented
 
 ## Success Criteria Met
 
 ✓ Single command to download and launch videos
-✓ Mark 10+ techniques without switching apps
+✓ Mark techniques without switching apps
 ✓ Accurate clip extraction with timestamps
-✓ Label-based grouping into single markdown
+✓ Automatic grouping by source video
 ✓ Obsidian-compatible output format
 ✓ Unattended batch processing capability
 ✓ Modular, maintainable code structure
 ✓ Type hints throughout codebase
 ✓ Clear error messages
 ✓ Comprehensive documentation
+✓ Immediate extraction (no queue needed)
+✓ Automatic file organization
+✓ Snake_case naming convention
 
 ## Notes
 
-- The application is fully functional pending installation of system dependencies (FFmpeg, MPV)
+- Clips are extracted immediately when committed in MPV
+- All filenames use snake_case with 50 character limit
+- Labels are required (not optional)
+- Clips from same source video are automatically grouped
+- Processed clips are moved to vault/clips/processed/
+- Media files are copied to vault/Media/ with numbered suffixes
+- Markdown files are saved to vault/Techniques/
 - API keys need to be configured in `.env` before processing clips
 - Whisper models are downloaded automatically on first use
 - The batch file (`cj.bat`) provides a convenient wrapper on Windows
-- All core functionality specified in requirements document has been implemented

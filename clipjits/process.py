@@ -1,14 +1,13 @@
 """Batch processing of clips with transcription and LLM summarization."""
 
-import json
-import subprocess
+import shutil
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from collections import defaultdict
 import click
 
 from .config import config
-from .utils import extract_base_label
+from .utils import to_snake_case
 
 
 def transcribe_video(video_path: Path, model_size: str = "base") -> str:
@@ -34,40 +33,62 @@ def transcribe_video(video_path: Path, model_size: str = "base") -> str:
 
 
 def generate_technique_summary(
-    transcript: str,
-    video_filename: str,
+    transcripts: List[str],
+    video_filenames: List[str],
     provider: str = "openai",
     model: Optional[str] = None
-) -> str:
+) -> tuple[str, str]:
     """
     Generate technique summary using LLM.
     
     Args:
-        transcript: Video transcript
-        video_filename: Name of the video file
+        transcripts: List of video transcripts
+        video_filenames: List of video filenames for reference
         provider: LLM provider (openai/anthropic)
         model: Model name
     
     Returns:
-        Markdown formatted technique summary
+        Tuple of (technique_name, markdown_content)
     """
-    prompt = f"""You are analyzing a Brazilian Jiu Jitsu instructional video clip. The instructor describes the following technique:
+    combined_transcript = "\n\n---\n\n".join(
+        [f"Clip {i+1}:\n{t}" for i, t in enumerate(transcripts)]
+    )
+    
+    prompt = f"""You are analyzing Brazilian Jiu Jitsu instructional video clips. The instructor describes the following technique:
 
-{transcript}
+{combined_transcript}
 
 Generate a comprehensive technique card with:
-1. Technique name and category
-2. Step-by-step breakdown (numbered list)
-3. Various concepts and details concerning the technique
+1. A clear, descriptive technique name (e.g., "Armbar from Guard", "Kimura from Side Control")
+2. Category (e.g., Submission, Sweep, Pass, Escape)
+3. Step-by-step breakdown (numbered list)
+4. Key concepts and details
 
-Format as markdown suitable for Obsidian. Include the video embed at the end using: ![[{video_filename}]]"""
+Format as markdown suitable for Obsidian. Start with the technique name as the title (# Technique Name).
+
+At the end, include a ## Video section with these embeds:
+{chr(10).join([f'![[{fn}]]' for fn in video_filenames])}
+
+IMPORTANT: Your response must start with the technique name in the format "# Technique Name" as the very first line."""
 
     if provider == "openai":
-        return _generate_with_openai(prompt, model)
+        content = _generate_with_openai(prompt, model)
     elif provider == "anthropic":
-        return _generate_with_anthropic(prompt, model)
+        content = _generate_with_anthropic(prompt, model)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
+    
+    # Extract technique name from the markdown
+    lines = content.strip().split('\n')
+    technique_name = "untitled_technique"
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('# '):
+            technique_name = line[2:].strip()
+            break
+    
+    return technique_name, content
 
 
 def _generate_with_openai(prompt: str, model: Optional[str] = None) -> str:
@@ -108,37 +129,31 @@ def _generate_with_anthropic(prompt: str, model: Optional[str] = None) -> str:
     return response.content[0].text
 
 
-def group_clips_by_label(clips_dir: Path) -> Dict[str, List[Path]]:
-    """Group video clips by their base label (e.g., armbar1, armbar2 -> armbar)."""
+def group_clips_by_source(clips_dir: Path) -> Dict[str, List[Path]]:
+    """
+    Group clips by their source video name.
+    
+    Returns dict with source names as keys and lists of clip paths as values.
+    """
     groups = defaultdict(list)
     
     for video_path in sorted(clips_dir.glob("*.mp4")):
+        # Extract source name (everything before the last underscore and label)
         filename = video_path.stem
         
-        parts = filename.rsplit('_', 1)
-        if len(parts) == 2:
-            label = parts[1]
+        # Find last underscore to separate source from label
+        last_underscore = filename.rfind('_')
+        if last_underscore > 0:
+            source = filename[:last_underscore]
         else:
-            label = filename
+            source = filename
         
-        base_label, number = extract_base_label(label)
-        
-        groups[base_label].append(video_path)
+        groups[source].append(video_path)
     
     return dict(groups)
 
 
-def combine_transcripts(transcripts: List[str]) -> str:
-    """Combine multiple transcripts with clear separation."""
-    combined = []
-    for i, transcript in enumerate(transcripts, 1):
-        combined.append(f"Clip {i}:\n{transcript}")
-    return "\n\n---\n\n".join(combined)
-
-
 def process_clips(
-    clips_dir: Path,
-    output_dir: Optional[Path] = None,
     whisper_model: Optional[str] = None,
     llm_provider: Optional[str] = None,
     llm_model: Optional[str] = None,
@@ -148,17 +163,26 @@ def process_clips(
     """
     Process video clips: transcribe and generate technique summaries.
     
+    Clips are read from vault/clips/, processed, and moved to vault/clips/processed/.
+    Media files are copied to vault/Media/ and markdown is saved to vault/Techniques/.
+    
     Args:
-        clips_dir: Directory containing video clips
-        output_dir: Output directory for markdown files
         whisper_model: Whisper model size
         llm_provider: LLM provider
         llm_model: LLM model name
         skip_transcription: Use existing transcript files
         resume: Skip already processed clips
     """
-    output_dir = output_dir or config.obsidian_vault_path
-    output_dir.mkdir(parents=True, exist_ok=True)
+    clips_dir = config.clips_dir
+    processed_dir = config.clips_processed_dir
+    media_dir = config.media_dir
+    techniques_dir = config.techniques_dir
+    
+    # Ensure directories exist
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    media_dir.mkdir(parents=True, exist_ok=True)
+    techniques_dir.mkdir(parents=True, exist_ok=True)
     
     whisper_model = whisper_model or config.whisper_model_size
     llm_provider = llm_provider or config.llm_provider
@@ -173,27 +197,20 @@ def process_clips(
     if not clips_dir.exists():
         raise click.ClickException(f"Clips directory not found: {clips_dir}")
     
-    grouped_clips = group_clips_by_label(clips_dir)
+    grouped_clips = group_clips_by_source(clips_dir)
     
     if not grouped_clips:
-        click.echo("No video clips found in directory.")
+        click.echo("No video clips found in clips directory.")
         return
     
     total_groups = len(grouped_clips)
-    click.echo(f"Found {total_groups} technique groups to process.\n")
+    click.echo(f"Found {total_groups} technique(s) to process.\n")
     
-    for group_idx, (base_label, video_paths) in enumerate(sorted(grouped_clips.items()), 1):
-        click.echo(f"[{group_idx}/{total_groups}] Processing technique: {base_label}")
+    for group_idx, (source_name, video_paths) in enumerate(sorted(grouped_clips.items()), 1):
+        click.echo(f"[{group_idx}/{total_groups}] Processing clips from: {source_name}")
         click.echo(f"  Clips in group: {len(video_paths)}")
         
-        output_file = output_dir / f"{base_label}.md"
-        
-        if resume and output_file.exists():
-            click.echo(f"  Skipping - already processed")
-            continue
-        
         transcripts = []
-        video_filenames = []
         
         for video_path in video_paths:
             transcript_file = video_path.with_suffix('.txt')
@@ -214,32 +231,67 @@ def process_clips(
                     continue
             
             transcripts.append(transcript)
-            video_filenames.append(video_path.name)
         
         if not transcripts:
             click.echo(f"  No transcripts available, skipping group.")
             continue
         
-        combined_transcript = combine_transcripts(transcripts)
-        
         click.echo(f"  Generating technique summary with {llm_provider}...")
         
         try:
-            video_embeds = "\n".join([f"![[{fn}]]" for fn in video_filenames])
-            summary = generate_technique_summary(
-                combined_transcript,
-                video_embeds,
+            # Generate with original filenames for embedding
+            original_filenames = [p.name for p in video_paths]
+            technique_name, summary = generate_technique_summary(
+                transcripts,
+                original_filenames,
                 llm_provider,
                 llm_model
             )
             
+            # Convert technique name to snake_case for filename
+            technique_filename = to_snake_case(technique_name)
+            
+            # Copy media files to Media/ with numbered suffix
+            media_filenames = []
+            for idx, video_path in enumerate(video_paths, 1):
+                media_filename = f"{technique_filename}_{idx}.mp4"
+                media_path = media_dir / media_filename
+                shutil.copy2(video_path, media_path)
+                media_filenames.append(media_filename)
+                click.echo(f"  Copied to media: {media_filename}")
+            
+            # Update markdown to reference new media filenames
+            for original, new in zip(original_filenames, media_filenames):
+                summary = summary.replace(f"![[{original}]]", f"![[{new}]]")
+            
+            # Save markdown to Techniques/
+            output_file = techniques_dir / f"{technique_filename}.md"
+            
+            if resume and output_file.exists():
+                click.echo(f"  Skipping - already processed: {output_file.name}")
+                continue
+            
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(summary)
             
-            click.echo(f"  Saved to: {output_file}\n")
+            click.echo(f"  Saved technique: {output_file.name}")
+            
+            # Move processed clips to processed/ directory
+            for video_path in video_paths:
+                processed_path = processed_dir / video_path.name
+                shutil.move(str(video_path), str(processed_path))
+                
+                # Also move transcript files if they exist
+                transcript_file = video_path.with_suffix('.txt')
+                if transcript_file.exists():
+                    processed_transcript = processed_dir / transcript_file.name
+                    shutil.move(str(transcript_file), str(processed_transcript))
+            
+            click.echo(f"  Moved {len(video_paths)} clip(s) to processed/\n")
             
         except Exception as e:
-            click.echo(f"  LLM generation failed: {e}", err=True)
+            click.echo(f"  Processing failed: {e}", err=True)
             continue
     
-    click.echo(f"Processing complete. Processed {total_groups} technique groups.")
+    click.echo(f"Processing complete. Processed {total_groups} technique(s).")
+

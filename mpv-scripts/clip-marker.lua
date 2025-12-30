@@ -6,22 +6,42 @@ local msg = require 'mp.msg'
 
 local clip_start = nil
 local clip_end = nil
-local queue_file = nil
+local clips_dir = nil
 
-function get_queue_file()
-    if queue_file then
-        return queue_file
+function get_clips_dir()
+    if clips_dir then
+        return clips_dir
     end
     
     local script_opts = mp.get_property_native("script-opts")
-    if script_opts and script_opts["clipjits-queue-file"] then
-        queue_file = script_opts["clipjits-queue-file"]
-        return queue_file
+    if script_opts and script_opts["clipjits-clips-dir"] then
+        clips_dir = script_opts["clipjits-clips-dir"]
+        return clips_dir
     end
     
-    local home = os.getenv("HOME") or os.getenv("USERPROFILE")
-    queue_file = home .. "/.clipjits/clip_queue.json"
-    return queue_file
+    -- Default fallback
+    clips_dir = "./jits/clips"
+    return clips_dir
+end
+
+function to_snake_case(text)
+    -- Convert to lowercase
+    text = string.lower(text)
+    -- Replace spaces and hyphens with underscores
+    text = string.gsub(text, "[%s%-]+", "_")
+    -- Remove special characters
+    text = string.gsub(text, "[^%w_]", "")
+    -- Remove multiple underscores
+    text = string.gsub(text, "_+", "_")
+    -- Trim underscores from start and end
+    text = string.gsub(text, "^_+", "")
+    text = string.gsub(text, "_+$", "")
+    -- Truncate to 50 characters
+    if string.len(text) > 50 then
+        text = string.sub(text, 1, 50)
+        text = string.gsub(text, "_+$", "")
+    end
+    return text
 end
 
 function format_timestamp(seconds)
@@ -32,60 +52,75 @@ function format_timestamp(seconds)
     return string.format("%02d:%02d:%06.3f", hours, minutes, secs)
 end
 
-function load_queue()
-    local file_path = get_queue_file()
-    local file = io.open(file_path, "r")
+function extract_clip(source_video, start_time, end_time, label)
+    local dir = get_clips_dir()
     
-    if not file then
-        return {clips = {}}
-    end
-    
-    local content = file:read("*all")
-    file:close()
-    
-    if content == "" then
-        return {clips = {}}
-    end
-    
-    local success, queue_data = pcall(utils.parse_json, content)
-    if success and queue_data then
-        return queue_data
+    -- Ensure directory exists
+    if package.config:sub(1,1) == '\\' then
+        os.execute('if not exist "' .. dir .. '" mkdir "' .. dir .. '"')
     else
-        return {clips = {}}
-    end
-end
-
-function save_queue(queue_data)
-    local file_path = get_queue_file()
-    
-    local dir = file_path:match("(.+)[/\\]")
-    if dir then
-        if package.config:sub(1,1) == '\\' then
-            os.execute('if not exist "' .. dir .. '" mkdir "' .. dir .. '"')
-        else
-            os.execute("mkdir -p " .. dir)
-        end
+        os.execute('mkdir -p "' .. dir .. '"')
     end
     
-    local file = io.open(file_path, "w")
-    if not file then
-        mp.osd_message("Error: Cannot write to queue file", 3)
+    -- Get source video filename without extension
+    local source_name = source_video:match("([^/\\]+)$")
+    source_name = source_name:match("(.+)%..+$") or source_name
+    source_name = to_snake_case(source_name)
+    
+    label = to_snake_case(label)
+    
+    local output_filename = source_name .. "_" .. label .. ".mp4"
+    local output_path = dir .. "/" .. output_filename
+    
+    -- Calculate duration
+    local start_seconds = parse_timestamp(start_time)
+    local end_seconds = parse_timestamp(end_time)
+    local duration = end_seconds - start_seconds
+    
+    -- Build ffmpeg command
+    local cmd
+    if package.config:sub(1,1) == '\\' then
+        -- Windows
+        cmd = string.format(
+            'ffmpeg -y -ss %f -i "%s" -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero "%s"',
+            start_seconds, source_video, duration, output_path
+        )
+    else
+        -- Unix
+        cmd = string.format(
+            "ffmpeg -y -ss %f -i '%s' -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero '%s'",
+            start_seconds, source_video, duration, output_path
+        )
+    end
+    
+    mp.osd_message("Extracting clip...", 2)
+    print("\n[ClipJits] Extracting clip: " .. output_filename)
+    
+    local result = os.execute(cmd)
+    
+    if result == 0 or result == true then
+        mp.osd_message("✓ Clip saved: " .. output_filename, 3)
+        print("[ClipJits] ✓ Clip saved to: " .. output_path .. "\n")
+        return true
+    else
+        mp.osd_message("✗ Extraction failed", 3)
+        print("[ClipJits] ✗ Extraction failed\n")
         return false
     end
-    
-    local json_str = utils.format_json(queue_data)
-    file:write(json_str)
-    file:close()
-    
-    return true
 end
 
-function generate_uuid()
-    local template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-    return string.gsub(template, '[xy]', function(c)
-        local v = (c == 'x') and math.random(0, 0xf) or math.random(8, 0xb)
-        return string.format('%x', v)
-    end)
+function parse_timestamp(timestamp)
+    local hours, minutes, seconds = timestamp:match("(%d+):(%d+):([%d.]+)")
+    if hours then
+        return tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(seconds)
+    end
+    
+    minutes, seconds = timestamp:match("(%d+):([%d.]+)")
+    if minutes then
+        return tonumber(minutes) * 60 + tonumber(seconds)
+    end
+    
+    return tonumber(timestamp) or 0
 end
 
 function mark_start()
@@ -129,36 +164,29 @@ function commit_clip()
     local was_paused = mp.get_property_bool("pause")
     mp.set_property("pause", "yes")
     
-    mp.osd_message("Enter label in terminal", 3)
+    mp.osd_message("Enter label in terminal (required)", 3)
     
     print("\n" .. string.rep("─", 50))
-    io.write("Enter clip label (or press Enter to skip): ")
+    io.write("Enter clip label (required): ")
     io.flush()
     local label = io.read()
     print(string.rep("─", 50))
     
+    -- Label is now required
     if not label or label == "" then
-        label = ""
+        mp.osd_message("Error: Label is required", 3)
+        print("[ClipJits] Error: Label cannot be empty\n")
+        if not was_paused then
+            mp.set_property("pause", "no")
+        end
+        return
     end
     
-    local queue_data = load_queue()
+    local start_formatted = format_timestamp(clip_start)
+    local end_formatted = format_timestamp(clip_end)
     
-    local new_clip = {
-        id = generate_uuid(),
-        source_video = video_path,
-        start_time = format_timestamp(clip_start),
-        end_time = format_timestamp(clip_end),
-        label = label,
-        created_at = os.date("!%Y-%m-%dT%H:%M:%S")
-    }
-    
-    table.insert(queue_data.clips, new_clip)
-    
-    if save_queue(queue_data) then
-        local label_display = label ~= "" and label or "(auto)"
-        mp.osd_message(string.format("✓ Saved: %s", label_display), 2)
-        print(string.format("[ClipJits] ✓ Clip saved with label: %s\n", label_display))
-        
+    -- Extract clip immediately
+    if extract_clip(video_path, start_formatted, end_formatted, label) then
         clip_start = nil
         clip_end = nil
     end

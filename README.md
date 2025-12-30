@@ -1,7 +1,7 @@
 # ClipJits
 
 Create BJJ technique cards from instructional videos:
-1. Mark clips in MPV with keyboard shortcuts
+1. Mark clips in MPV with keyboard shortcuts (extracts immediately)
 2. Batch process with AI to generate markdown summaries
 
 ## Requirements
@@ -22,7 +22,7 @@ cp .env.example .env
 Edit `.env` with your API key:
 ```bash
 OPENAI_API_KEY=your-key-here
-OBSIDIAN_VAULT_PATH=~/path/to/vault
+VAULT_PATH=./jits
 ```
 
 ## Usage
@@ -30,31 +30,22 @@ OBSIDIAN_VAULT_PATH=~/path/to/vault
 **Note:** If `clipjits` command not found, use `python -m clipjits` instead.
 
 ```bash
-# 1. Download video
+# 1. Download video (saved to jits/downloads/)
 clipjits download "https://youtube.com/watch?v=..."
 
-# 2. Mark clips in MPV (s=start, e=end, c=commit with label)
-clipjits watch source-videos/video.mp4
+# 2. Mark and extract clips in MPV
+# Press s=start, e=end, c=commit (label required, extracts immediately)
+clipjits watch jits/downloads/video.mp4
 
-# 3. Extract clips
-clipjits extract
-
-# 4. Generate technique cards
-clipjits process ./clips
+# 3. Process clips (transcribe + generate technique cards)
+clipjits process
 ```
 
-**Queue management:**
+**Processing options:**
 ```bash
-clipjits queue list      # View clips
-clipjits queue edit      # Edit/remove clips
-clipjits queue clear     # Clear all
-```
-
-**Options:**
-```bash
-clipjits process ./clips --model medium              # Better transcription
-clipjits process ./clips --llm-provider anthropic   # Use Claude
-clipjits process ./clips --resume                   # Skip processed
+clipjits process --model medium              # Better transcription
+clipjits process --llm-provider anthropic   # Use Claude
+clipjits process --resume                   # Skip processed
 ```
 
 
@@ -66,14 +57,25 @@ Configuration is managed via `.env` file. See `.env.example` for all available o
 ### Key Settings
 
 | Setting | Description | Default |
-|---------|-------------|---------|
-| `SOURCE_VIDEOS_DIR` | Directory for downloaded videos | `./source-videos` |
-| `CLIPS_OUTPUT_DIR` | Directory for extracted clips | `./clips` |
-| `OBSIDIAN_VAULT_PATH` | Output directory for markdown files | `~/Documents/ObsidianVault/BJJ/techniques` |
+|---------|-------------|---------|------|
+| `VAULT_PATH` | Main vault directory (contains all subfolders) | `./jits` |
 | `DEFAULT_VIDEO_QUALITY` | Video download quality | `1080p` |
 | `WHISPER_MODEL_SIZE` | Whisper model (tiny/base/small/medium/large) | `base` |
 | `LLM_PROVIDER` | LLM provider (openai/anthropic) | `openai` |
 | `LLM_MODEL` | LLM model name | `gpt-4o-mini` |
+
+### Vault Structure
+
+All data is organized under `VAULT_PATH` (default: `./jits/`):
+
+```
+jits/
+  clips/              # Active clips ready to process
+  clips/processed/    # Processed clips (moved here after processing)
+  downloads/          # Downloaded videos
+  Techniques/         # Generated markdown files
+  Media/              # Media files referenced in markdown
+```
 
 ### Whisper Model Sizes
 
@@ -85,14 +87,20 @@ Configuration is managed via `.env` file. See `.env.example` for all available o
 
 
 
+## Workflow Details
+
+1. **Download**: Videos are saved to `jits/downloads/`
+2. **Watch & Clip**: Clips are extracted immediately to `jits/clips/` when you commit (press 'c')
+3. **Process**: Clips are transcribed, analyzed, and moved to `jits/clips/processed/`. Media files are copied to `jits/Media/` with proper naming, and markdown files are saved to `jits/Techniques/`
+
 ## Troubleshooting
 
 **Command not found:** Use `python -m clipjits` instead of `clipjits`
 
 **YouTube 403 error:** Run `pip install --upgrade yt-dlp`
 
-**MPV label input:** After pressing `c`, look at terminal (not MPV) to enter label
+**MPV label input:** After pressing `c`, look at terminal (not MPV) to enter label (required)
 
 **Slow transcription:** Set `WHISPER_MODEL_SIZE=tiny` in `.env`
 
-**Grouped clips:** Use numbered labels (e.g., `armbar1`, `armbar2`) to combine into one card
+**Clips from same video:** Clips from the same source video are processed together into one technique card

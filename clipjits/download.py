@@ -26,7 +26,7 @@ def download_video(
         Path to downloaded video file
     """
     quality = quality or config.default_video_quality
-    output_dir = output_dir or config.source_videos_dir
+    output_dir = output_dir or config.downloads_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     
     height = quality.replace('p', '')
