@@ -118,11 +118,11 @@ ClipJits/
 
 ```bash
 # Use the batch file wrapper (Windows)
-cj download "https://youtube.com/watch?v=..."
-cj watch source-videos/video.mp4
-cj queue list
-cj extract
-cj process ./clips
+clipjits download "https://youtube.com/watch?v=..."
+clipjits watch source-videos/video.mp4
+clipjits queue list
+clipjits extract
+clipjits process ./clips
 
 # Or use Python module directly
 python -m clipjits.cli download "url"

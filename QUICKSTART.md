@@ -20,10 +20,10 @@ brew install ffmpeg mpv    # macOS
 If `clipjits` command not found, use `python -m clipjits`:
 
 ```bash
-python -m clipjits download "https://youtube.com/watch?v=..."
-python -m clipjits watch source-videos/video.mp4
-python -m clipjits extract
-python -m clipjits process ./clips
+clipjits download "https://youtube.com/watch?v=..."
+clipjits watch source-videos/video.mp4
+clipjits extract
+clipjits process ./clips
 ```
 
 ## MPV Controls
