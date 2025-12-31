@@ -29,7 +29,7 @@ def download_video(
     
     try:
         subprocess.run(cmd, check=True)
-        click.echo("\nDownload complete, saved to: " + str(output_dir))
+        click.echo("\nDownload complete.")
         return output_dir
         
     except subprocess.CalledProcessError as e:
