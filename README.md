@@ -1,6 +1,6 @@
 # ClipJits
-
-Create BJJ technique cards from instructional videos with AI-powered summaries.
+<img width="2391" height="1174" alt="flow" src="https://github.com/user-attachments/assets/98bdc68d-b92b-4bf7-90ea-7f8652229426" />
+Easily BJJ technique cards from instructional videos with AI-powered summaries. Used to do this manually but it happened to take a shit ton of time!
 
 ## Requirements
 
@@ -24,6 +24,9 @@ VAULT_PATH=./jits
 ```
 
 ## Usage
+
+![meirl](https://github.com/user-attachments/assets/3d8b4413-944a-4752-aa3e-14c0d4893220)
+_(no one named "Claude" was injured during the making of this, I swear...)_
 
 **Note:** If `clipjits` command not found, use `python -m clipjits` instead.
 
