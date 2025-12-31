@@ -43,9 +43,9 @@ clipjits process
 
 **Processing options:**
 ```bash
-clipjits process --model medium              # Better transcription
-clipjits process --llm-provider anthropic    # Use Claude
-clipjits process --resume                    # Skip already processed
+clipjits process --model medium                # Better transcription
+clipjits process --llm-provider anthropic      # Use Claude
+clipjits process --skip-transcription          # Use existing transcripts
 ```
 
 ## Vault Structure
