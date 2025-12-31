@@ -77,34 +77,33 @@ function extract_clip(source_video, start_time, end_time, label)
     local end_seconds = parse_timestamp(end_time)
     local duration = end_seconds - start_seconds
     
-    -- Build ffmpeg command
+    -- Build ffmpeg command (suppress output)
     local cmd
     if package.config:sub(1,1) == '\\' then
         -- Windows
         cmd = string.format(
-            'ffmpeg -y -ss %f -i "%s" -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero "%s"',
+            'ffmpeg -y -ss %f -i "%s" -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero "%s" >nul 2>&1',
             start_seconds, source_video, duration, output_path
         )
     else
         -- Unix
         cmd = string.format(
-            "ffmpeg -y -ss %f -i '%s' -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero '%s'",
+            "ffmpeg -y -ss %f -i '%s' -t %f -c:v libx264 -c:a aac -avoid_negative_ts make_zero '%s' >/dev/null 2>&1",
             start_seconds, source_video, duration, output_path
         )
     end
     
     mp.osd_message("Extracting clip...", 2)
-    print("\n[ClipJits] Extracting clip: " .. output_filename)
     
     local result = os.execute(cmd)
     
     if result == 0 or result == true then
         mp.osd_message("✓ Clip saved: " .. output_filename, 3)
-        print("[ClipJits] ✓ Clip saved to: " .. output_path .. "\n")
+        print("[ClipJits] ✓ Clip saved: " .. output_filename)
         return true
     else
         mp.osd_message("✗ Extraction failed", 3)
-        print("[ClipJits] ✗ Extraction failed\n")
+        print("[ClipJits] ✗ FATAL ERROR: Extraction failed for " .. output_filename)
         return false
     end
 end

@@ -24,9 +24,7 @@ def cli():
 def download(url: str, quality: Optional[str]):
     """Download video from URL to vault/downloads/ folder."""
     try:
-        output_path = download_video(url, quality)
-        click.echo(f"\nVideo saved to: {output_path}")
-        click.echo(f"\nTo watch and clip: clipjits watch \"{output_path}\"")
+        download_video(url, quality)
     except Exception as e:
         raise click.ClickException(str(e))
 

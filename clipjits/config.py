@@ -54,15 +54,3 @@ class Config:
 
 
 config = Config()
-
-
-    def validate_api_keys(self) -> bool:
-        """Validate that appropriate API keys are set."""
-        if self.llm_provider == "openai" and not self.openai_api_key:
-            return False
-        if self.llm_provider == "anthropic" and not self.anthropic_api_key:
-            return False
-        return True
-
-
-config = Config()
