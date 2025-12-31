@@ -66,7 +66,7 @@ Configuration is managed via `.env` file. See `.env.example` for all available o
 
 ### Vault Structure
 
-All data is organized under `VAULT_PATH` (default: `./jits/`):
+All data is organized under `VAULT_PATH`:
 
 ```
 jits/

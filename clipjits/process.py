@@ -10,6 +10,11 @@ from .config import config
 from .utils import to_snake_case
 
 
+def humanize_filename(snake_case_text: str) -> str:
+    """Convert snake_case to Title Case for readable filenames."""
+    return snake_case_text.replace('_', ' ').title()
+
+
 def transcribe_video(video_path: Path, model_size: str = "base") -> str:
     """
     Transcribe video audio using OpenAI Whisper.
@@ -54,22 +59,21 @@ def generate_technique_summary(
         [f"Clip {i+1}:\n{t}" for i, t in enumerate(transcripts)]
     )
     
-    prompt = f"""You are analyzing Brazilian Jiu Jitsu instructional video clips. The instructor describes the following technique:
+    prompt = f"""Clean up and organize this BJJ instructional transcript into a clear technique description:
 
 {combined_transcript}
 
-Generate a comprehensive technique card with:
-1. A clear, descriptive technique name (e.g., "Armbar from Guard", "Kimura from Side Control")
-2. Category (e.g., Submission, Sweep, Pass, Escape)
-3. Step-by-step breakdown (numbered list)
-4. Key concepts and details
+Rules:
+- Extract a technique name for the title (title = file name, there is no title in the content)
+- Clean up the transcript into a clear step-by-step breakdown
+- Remove filler words, repetitions, and verbal artifacts
+- Use direct technical language only
+- NO introductions, meta-commentary, safety disclaimers, or conclusions
+- Do NOT add information not in the transcript
 
-Format as markdown suitable for Obsidian. Start with the technique name as the title (# Technique Name).
+At the end, add the video embeds with blank lines between them:
 
-At the end, include a ## Video section with these embeds:
-{chr(10).join([f'![[{fn}]]' for fn in video_filenames])}
-
-IMPORTANT: Your response must start with the technique name in the format "# Technique Name" as the very first line."""
+{chr(10).join([f'![[{fn}]]' for fn in video_filenames])}"""
 
     if provider == "openai":
         content = _generate_with_openai(prompt, model)
@@ -80,13 +84,41 @@ IMPORTANT: Your response must start with the technique name in the format "# Tec
     
     # Extract technique name from the markdown
     lines = content.strip().split('\n')
-    technique_name = "untitled_technique"
+    technique_name = None
+    title_line = None
     
-    for line in lines:
-        line = line.strip()
-        if line.startswith('# '):
-            technique_name = line[2:].strip()
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        if line_stripped.startswith('# '):
+            technique_name = line_stripped[2:].strip()
+            title_line = i
             break
+        # Handle bold format: **Title**
+        elif line_stripped.startswith('**') and line_stripped.endswith('**') and len(line_stripped) > 4:
+            technique_name = line_stripped[2:-2].strip()
+            title_line = i
+            break
+    
+    # If no title found, use first non-empty line
+    if not technique_name:
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped:
+                technique_name = line_stripped.replace('#', '').replace('*', '').strip()
+                title_line = i
+                break
+    
+    # Last resort fallback
+    if not technique_name:
+        technique_name = "untitled_technique"
+    
+    # Remove the title line from content
+    if title_line is not None:
+        lines.pop(title_line)
+        # Remove any empty lines right after the title
+        while title_line < len(lines) and not lines[title_line].strip():
+            lines.pop(title_line)
+        content = '\n'.join(lines).strip()
     
     return technique_name, content
 
@@ -101,10 +133,10 @@ def _generate_with_openai(prompt: str, model: Optional[str] = None) -> str:
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": "You are a Brazilian Jiu Jitsu instructor creating detailed technique cards."},
+            {"role": "system", "content": "You are a BJJ technique documenter. Output only factual technique descriptions with no fluff."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0.7,
+        temperature=0.3,
     )
     
     return response.choices[0].message.content
@@ -120,7 +152,7 @@ def _generate_with_anthropic(prompt: str, model: Optional[str] = None) -> str:
     response = client.messages.create(
         model=model,
         max_tokens=2000,
-        system="You are a Brazilian Jiu Jitsu instructor creating detailed technique cards.",
+        system="You are a BJJ technique documenter. Output only factual technique descriptions with no fluff.",
         messages=[
             {"role": "user", "content": prompt}
         ]
@@ -129,26 +161,31 @@ def _generate_with_anthropic(prompt: str, model: Optional[str] = None) -> str:
     return response.content[0].text
 
 
-def group_clips_by_source(clips_dir: Path) -> Dict[str, List[Path]]:
+def group_clips_by_label(clips_dir: Path) -> Dict[str, List[Path]]:
     """
-    Group clips by their source video name.
+    Group clips by their label, combining labels with numeric suffixes.
+    Examples: "arm drag 1.mp4", "arm drag 2.mp4" -> grouped as "arm drag"
+              "arm bar1.mp4", "arm bar2.mp4" -> grouped as "arm bar"
+              "kimura.mp4" -> grouped as "kimura"
+              "arm_drag_1.mp4" -> grouped as "arm_drag"
     
-    Returns dict with source names as keys and lists of clip paths as values.
+    Returns dict with base labels as keys and lists of clip paths as values.
     """
+    import re
     groups = defaultdict(list)
     
     for video_path in sorted(clips_dir.glob("*.mp4")):
-        # Extract source name (everything before the last underscore and label)
         filename = video_path.stem
         
-        # Find last underscore to separate source from label
-        last_underscore = filename.rfind('_')
-        if last_underscore > 0:
-            source = filename[:last_underscore]
-        else:
-            source = filename
+        # Remove trailing numeric suffix (with optional space or underscore before it)
+        # Matches: "label 1", "label_1", "label1"
+        base_label = re.sub(r'[\s_]?\d+$', '', filename).strip()
         
-        groups[source].append(video_path)
+        # If removing the number left us with nothing, use original
+        if not base_label:
+            base_label = filename
+        
+        groups[base_label].append(video_path)
     
     return dict(groups)
 
@@ -197,7 +234,7 @@ def process_clips(
     if not clips_dir.exists():
         raise click.ClickException(f"Clips directory not found: {clips_dir}")
     
-    grouped_clips = group_clips_by_source(clips_dir)
+    grouped_clips = group_clips_by_label(clips_dir)
     
     if not grouped_clips:
         click.echo("No video clips found in clips directory.")
@@ -206,8 +243,8 @@ def process_clips(
     total_groups = len(grouped_clips)
     click.echo(f"Found {total_groups} technique(s) to process.\n")
     
-    for group_idx, (source_name, video_paths) in enumerate(sorted(grouped_clips.items()), 1):
-        click.echo(f"[{group_idx}/{total_groups}] Processing clips from: {source_name}")
+    for group_idx, (label_name, video_paths) in enumerate(sorted(grouped_clips.items()), 1):
+        click.echo(f"[{group_idx}/{total_groups}] Processing: {label_name}")
         click.echo(f"  Clips in group: {len(video_paths)}")
         
         transcripts = []
@@ -250,6 +287,7 @@ def process_clips(
             
             # Convert technique name to snake_case for filename
             technique_filename = to_snake_case(technique_name)
+            humanized_filename = humanize_filename(technique_filename)
             
             # Copy media files to Media/ with numbered suffix
             media_filenames = []
@@ -260,12 +298,12 @@ def process_clips(
                 media_filenames.append(media_filename)
                 click.echo(f"  Copied to media: {media_filename}")
             
-            # Update markdown to reference new media filenames
+            # Update markdown to reference new media filenames with spacing
             for original, new in zip(original_filenames, media_filenames):
                 summary = summary.replace(f"![[{original}]]", f"![[{new}]]")
             
-            # Save markdown to Techniques/
-            output_file = techniques_dir / f"{technique_filename}.md"
+            # Save markdown to Techniques/ with humanized filename
+            output_file = techniques_dir / f"{humanized_filename}.md"
             
             if resume and output_file.exists():
                 click.echo(f"  Skipping - already processed: {output_file.name}")

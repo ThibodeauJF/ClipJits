@@ -1,9 +1,5 @@
 -- ClipJits MPV Script for marking and creating video clips
 -- Keybindings: s (start), e (end), c (commit)
-
-local utils = require 'mp.utils'
-local msg = require 'mp.msg'
-
 local clip_start = nil
 local clip_end = nil
 local clips_dir = nil
@@ -12,15 +8,10 @@ function get_clips_dir()
     if clips_dir then
         return clips_dir
     end
-    
+
     local script_opts = mp.get_property_native("script-opts")
-    if script_opts and script_opts["clipjits-clips-dir"] then
-        clips_dir = script_opts["clipjits-clips-dir"]
-        return clips_dir
-    end
-    
-    -- Default fallback
-    clips_dir = "./jits/clips"
+    clips_dir = script_opts["clipjits-clips-dir"]
+
     return clips_dir
 end
 
@@ -62,14 +53,9 @@ function extract_clip(source_video, start_time, end_time, label)
         os.execute('mkdir -p "' .. dir .. '"')
     end
     
-    -- Get source video filename without extension
-    local source_name = source_video:match("([^/\\]+)$")
-    source_name = source_name:match("(.+)%..+$") or source_name
-    source_name = to_snake_case(source_name)
-    
     label = to_snake_case(label)
     
-    local output_filename = source_name .. "_" .. label .. ".mp4"
+    local output_filename = label .. ".mp4"
     local output_path = dir .. "/" .. output_filename
     
     -- Calculate duration
