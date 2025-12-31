@@ -1,6 +1,6 @@
 # ClipJits
 <img width="2391" height="1174" alt="flow" src="https://github.com/user-attachments/assets/98bdc68d-b92b-4bf7-90ea-7f8652229426" />
-Create BJJ technique cards from instructional videos with AI-powered summaries. Perfect for [Obsidian](https://obsidian.md) vaults with embedded video support.
+Create BJJ technique cards from instructional videos with AI-powered summaries. Perfect for Obsidian vaults with embedded video support.
 
 ## Requirements
 
