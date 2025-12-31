@@ -62,3 +62,6 @@ htmlcov/
 
 # Logs
 *.log
+
+# The Vibe Coder Notes
+notes.md

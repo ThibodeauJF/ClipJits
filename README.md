@@ -1,8 +1,6 @@
 # ClipJits
 
-Create BJJ technique cards from instructional videos:
-1. Mark clips in MPV with keyboard shortcuts
-2. Batch process with AI to generate markdown summaries
+Create BJJ technique cards from instructional videos with AI-powered summaries.
 
 ## Requirements
 
@@ -22,7 +20,7 @@ cp .env.example .env
 Edit `.env` with your API key:
 ```bash
 OPENAI_API_KEY=your-key-here
-OBSIDIAN_VAULT_PATH=~/path/to/vault
+VAULT_PATH=./jits
 ```
 
 ## Usage
@@ -33,66 +31,51 @@ OBSIDIAN_VAULT_PATH=~/path/to/vault
 # 1. Download video
 clipjits download "https://youtube.com/watch?v=..."
 
-# 2. Mark clips in MPV (s=start, e=end, c=commit with label)
-clipjits watch source-videos/video.mp4
+# 2. Watch & mark clips (s=start, e=end, c=commit)
+clipjits watch jits/downloads/video.mp4
 
-# 3. Extract clips
-clipjits extract
-
-# 4. Generate technique cards
-clipjits process ./clips
+# 3. Process clips (transcribe + generate technique cards)
+clipjits process
 ```
 
-**Queue management:**
+**Processing options:**
 ```bash
-clipjits queue list      # View clips
-clipjits queue edit      # Edit/remove clips
-clipjits queue clear     # Clear all
+clipjits process --model medium              # Better transcription
+clipjits process --llm-provider anthropic    # Use Claude
+clipjits process --resume                    # Skip already processed
 ```
 
-**Options:**
-```bash
-clipjits process ./clips --model medium              # Better transcription
-clipjits process ./clips --llm-provider anthropic   # Use Claude
-clipjits process ./clips --resume                   # Skip processed
+## Vault Structure
+
+All data organized under `VAULT_PATH`:
+
 ```
-
-
+jits/
+  clips/              # Active clips ready to process
+  clips/processed/    # Processed clips (archived)
+  downloads/          # Downloaded videos
+  Techniques/         # Generated markdown files
+  Media/              # Media files referenced in markdown
+```
 
 ## Configuration
 
-Configuration is managed via `.env` file. See `.env.example` for all available options.
-
-### Key Settings
+Key settings in `.env`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `SOURCE_VIDEOS_DIR` | Directory for downloaded videos | `./source-videos` |
-| `CLIPS_OUTPUT_DIR` | Directory for extracted clips | `./clips` |
-| `OBSIDIAN_VAULT_PATH` | Output directory for markdown files | `~/Documents/ObsidianVault/BJJ/techniques` |
+| `VAULT_PATH` | Main vault directory | `./jits` |
 | `DEFAULT_VIDEO_QUALITY` | Video download quality | `1080p` |
 | `WHISPER_MODEL_SIZE` | Whisper model (tiny/base/small/medium/large) | `base` |
 | `LLM_PROVIDER` | LLM provider (openai/anthropic) | `openai` |
 | `LLM_MODEL` | LLM model name | `gpt-4o-mini` |
 
-### Whisper Model Sizes
-
-- `tiny` - Fastest, least accurate (~1GB RAM)
-- `base` - Good balance (~1GB RAM) **[Default]**
-- `small` - Better accuracy (~2GB RAM)
-- `medium` - High accuracy (~5GB RAM)
-- `large` - Best accuracy (~10GB RAM)
-
-
-
 ## Troubleshooting
 
-**Command not found:** Use `python -m clipjits` instead of `clipjits`
+**Command not found:** Use `python -m clipjits` instead
 
 **YouTube 403 error:** Run `pip install --upgrade yt-dlp`
 
-**MPV label input:** After pressing `c`, look at terminal (not MPV) to enter label
+**MPV label input:** After pressing `c`, enter label in terminal (required)
 
 **Slow transcription:** Set `WHISPER_MODEL_SIZE=tiny` in `.env`
-
-**Grouped clips:** Use numbered labels (e.g., `armbar1`, `armbar2`) to combine into one card

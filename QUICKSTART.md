@@ -8,33 +8,31 @@ cp .env.example .env
 # Edit .env with your OPENAI_API_KEY
 ```
 
-Install dependencies:
+Install system dependencies:
 ```bash
 winget install ffmpeg mpv  # Windows
-# or
 brew install ffmpeg mpv    # macOS
 ```
 
-## Running Commands
-
-If `clipjits` command not found, use `python -m clipjits`:
+## Commands
 
 ```bash
 clipjits download "https://youtube.com/watch?v=..."
-clipjits watch source-videos/video.mp4
-clipjits extract
-clipjits process ./clips
+clipjits watch jits/downloads/video.mp4
+clipjits process
 ```
+
+If `clipjits` not found, use `python -m clipjits` instead.
 
 ## MPV Controls
 
 - `s` - Mark start
 - `e` - Mark end  
-- `c` - Commit (enter label in terminal)
+- `c` - Commit (enter label in terminal, extracts immediately)
 - `q` - Quit
 
-## Tips
+## Workflow
 
-- Use numbered labels (`armbar1`, `armbar2`) to group clips into one card
-- Label prompt appears in **terminal**, not MPV window
-- Update yt-dlp if downloads fail: `pip install --upgrade yt-dlp`
+1. **Download** → `jits/downloads/`
+2. **Watch** → mark clips → extract to `jits/clips/`
+3. **Process** → transcribe + generate markdown → `jits/Techniques/`
