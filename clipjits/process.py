@@ -10,11 +10,6 @@ from .config import config
 from .utils import to_snake_case
 
 
-def humanize_filename(snake_case_text: str) -> str:
-    """Convert snake_case to Title Case for readable filenames."""
-    return snake_case_text.replace('_', ' ').title()
-
-
 def transcribe_video(video_path: Path, model_size: str = "base") -> str:
     """
     Transcribe video audio using OpenAI Whisper.
@@ -59,21 +54,37 @@ def generate_technique_summary(
         [f"Clip {i+1}:\n{t}" for i, t in enumerate(transcripts)]
     )
     
-    prompt = f"""Clean up and organize this BJJ instructional transcript into a clear technique description:
+    prompt = f"""You are analyzing a BJJ instructional video transcript. Your job is to extract ONLY what is actually said in the transcript.
 
+TRANSCRIPT:
 {combined_transcript}
 
-Rules:
-- Extract a technique name for the title (title = file name, there is no title in the content)
-- Clean up the transcript into a clear step-by-step breakdown
-- Remove filler words, repetitions, and verbal artifacts
-- Use direct technical language only
-- NO introductions, meta-commentary, safety disclaimers, or conclusions
-- Do NOT add information not in the transcript
+CRITICAL RULES - READ CAREFULLY:
+1. If the transcript is empty, contains only gibberish, or has no actual English words discussing BJJ techniques, you MUST output ONLY:
+   - A generic technique name based on the filename
+   - The video embeds
+   - NOTHING ELSE. NO steps, NO descriptions, NO made-up content.
+
+2. If there IS actual speech about BJJ techniques in the transcript:
+   - Extract a technique name for the title
+   - Write ONLY the steps and details that are explicitly mentioned in the transcript
+   - Remove filler words, repetitions, and verbal artifacts
+   - Remove nonsensical text, non-English words, and transcribed background sounds
+   - Use direct technical language only
+   - NO introductions, meta-commentary, safety disclaimers, or conclusions
+
+3. ABSOLUTELY FORBIDDEN:
+   - DO NOT invent steps that aren't in the transcript
+   - DO NOT add generic BJJ knowledge
+   - DO NOT make assumptions about what the technique might be
+   - DO NOT write anything that isn't directly stated in the transcript
+   - If you can't extract real content, output ONLY the title and video embeds
 
 At the end, add the video embeds with blank lines between them:
 
-{chr(10).join([f'![[{fn}]]' for fn in video_filenames])}"""
+{chr(10).join([f'![[{fn}]]' for fn in video_filenames])}
+
+Remember: An empty output with just the title and video embeds is BETTER than making up content that isn't in the transcript."""
 
     if provider == "openai":
         content = _generate_with_openai(prompt, model)
@@ -133,10 +144,10 @@ def _generate_with_openai(prompt: str, model: Optional[str] = None) -> str:
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": "You are a BJJ technique documenter. Output only factual technique descriptions with no fluff."},
+            {"role": "system", "content": "You are a BJJ technique documenter. You ONLY document what is explicitly stated in transcripts. You NEVER invent, assume, or add information. If a transcript has no real content, you output only a title and video embeds with no description."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0.3,
+        temperature=0.1,
     )
     
     return response.choices[0].message.content
@@ -287,7 +298,6 @@ def process_clips(
             
             # Convert technique name to snake_case for filename
             technique_filename = to_snake_case(technique_name)
-            humanized_filename = humanize_filename(technique_filename)
             
             # Copy media files to Media/ with numbered suffix
             media_filenames = []
@@ -302,8 +312,9 @@ def process_clips(
             for original, new in zip(original_filenames, media_filenames):
                 summary = summary.replace(f"![[{original}]]", f"![[{new}]]")
             
-            # Save markdown to Techniques/ with humanized filename
-            output_file = techniques_dir / f"{humanized_filename}.md"
+            # Save markdown to Techniques/ (convert snake_case to Title Case)
+            technique_readable = technique_filename.replace('_', ' ').title()
+            output_file = techniques_dir / f"{technique_readable}.md"
             
             if resume and output_file.exists():
                 click.echo(f"  Skipping - already processed: {output_file.name}")
