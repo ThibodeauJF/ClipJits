@@ -23,12 +23,11 @@ def download_video(
         '--merge-output-format', 'mp4',
         '--restrict-filenames',
         '-o', output_template,
-        '--quiet',
+        '--no-warnings',
         url
     ]
     
     try:
-        click.echo("\nDownloading...")
         subprocess.run(cmd, check=True)
         click.echo("\nDownload complete, saved to: " + str(output_dir))
         return output_dir
