@@ -7,7 +7,6 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
 lib/
@@ -37,8 +36,6 @@ ENV/
 .env
 
 # ClipJits data directories
-source-videos/
-clips/
 *.mp4
 *.mkv
 *.avi

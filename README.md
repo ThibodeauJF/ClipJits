@@ -31,11 +31,11 @@ _(no one named "Claude" was injured during the making of this, I swear...)_
 **Note:** If `clipjits` command not found, use `python -m clipjits` instead.
 
 ```bash
-# 1. Download video (saves to $VAULT_PATH/downloads/)
+# 1. Download video (saves to $VAULT_PATH/$CLIP_SUB_DIR/downloads/)
 clipjits download "https://youtube.com/watch?v=..."
 
 # 2. Watch & mark clips (s=start, e=end, c=commit)
-clipjits watch $VAULT_PATH/downloads/video.mp4
+clipjits watch $VAULT_PATH/$CLIP_SUB_DIR/downloads/video.mp4
 
 # 3. Process clips (transcribe + generate technique cards)
 clipjits process
@@ -54,11 +54,12 @@ All data organized under `VAULT_PATH` (configured in `.env`):
 
 ```
 $VAULT_PATH/
-  clips/              # Active clips ready to process
-  clips/processed/    # Processed clips (archived)
-  downloads/          # Downloaded videos
-  Techniques/         # Generated markdown files (Obsidian-compatible)
-  Media/              # Media files referenced in markdown
+  $CLIP_SUB_DIR/
+    raw-clips/         # Active clips ready to process
+    processed-clips/   # Processed clips (archived)
+    downloads/         # Downloaded videos
+  Techniques/          # Generated markdown files (Obsidian-compatible)
+  Media/               # Media files referenced in markdown
 ```
 
 ## Configuration
@@ -67,7 +68,8 @@ Key settings in `.env`:
 
 | Setting | Description | Example |
 |---------|-------------|---------|
-| `VAULT_PATH` | Main vault directory (can be Obsidian vault) | `~/Documents/Obsidian/BJJ` |
+| `VAULT_PATH` | Main vault directory (can be Obsidian vault) | `~/Jits` |
+| `CLIP_SUB_DIR` | Subdirectory for clips within vault | `ClipJits` |
 | `DEFAULT_VIDEO_QUALITY` | Video download quality | `1080p` |
 | `WHISPER_MODEL_SIZE` | Whisper model (tiny/base/small/medium/large) | `base` |
 | `LLM_PROVIDER` | LLM provider (openai/anthropic) | `openai` |

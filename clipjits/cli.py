@@ -22,7 +22,7 @@ def cli():
 @click.argument('url')
 @click.option('--quality', default=None, help='Video quality (e.g., 1080p, 720p)')
 def download(url: str, quality: Optional[str]):
-    """Download video from URL to vault/downloads/ folder."""
+    """Download video from URL to vault/CLIP_SUB_DIR/downloads/ folder."""
     try:
         download_video(url, quality)
     except Exception as e:
@@ -36,7 +36,7 @@ def watch(video_path: Path):
     Launch MPV with clip marking enabled.
     
     Press 's' to mark start, 'e' to mark end, 'c' to commit and extract clip.
-    Clips are automatically saved to vault/clips/ folder.
+    Clips are automatically saved to vault/CLIP_SUB_DIR/raw-clips/ folder.
     """
     try:
         launch_mpv(video_path)
@@ -63,10 +63,10 @@ def process(
     resume: bool
 ):
     """
-    Process clips from vault/clips/ folder.
+    Process clips from vault/CLIP_SUB_DIR/raw-clips/ folder.
     
     Transcribes audio, generates technique summaries with LLM.
-    Moves processed clips to vault/clips/processed/.
+    Moves processed clips to vault/CLIP_SUB_DIR/processed-clips/.
     Saves media to vault/Media/ and markdown to vault/Techniques/.
     """
     try:
