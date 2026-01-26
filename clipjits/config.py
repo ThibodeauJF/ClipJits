@@ -14,13 +14,17 @@ class Config:
     def __init__(self):
         # Main vault path - all project data is stored here
         self.vault_path = Path(
-            os.getenv("VAULT_PATH", "./jits")
+            os.getenv("VAULT_PATH", "~/Jits")
         ).expanduser()
         
+        # Clips subdirectory within vault
+        self.clip_sub_dir = os.getenv("CLIP_SUB_DIR", "ClipJits")
+        
         # Subfolder structure within vault
-        self.clips_dir = self.vault_path / "clips"
-        self.clips_processed_dir = self.vault_path / "clips" / "processed"
-        self.downloads_dir = self.vault_path / "downloads"
+        clip_base = self.vault_path / self.clip_sub_dir
+        self.clips_dir = clip_base / "raw-clips"
+        self.clips_processed_dir = clip_base / "processed-clips"
+        self.downloads_dir = clip_base / "downloads"
         self.techniques_dir = self.vault_path / "Techniques"
         self.media_dir = self.vault_path / "Media"
 
